@@ -9,7 +9,8 @@ class Settings(BaseSettings):
     batch_timeout_ms: int = 10
     warmup_requests: int = 50
 
-    preprocess_enabled: bool = True
+    preprocess_enabled: bool = False
+    mask_numeric_before_ner: bool = True
     return_debug: bool = False
 
     ort_force_cpu: bool = False

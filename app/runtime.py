@@ -1,11 +1,10 @@
-# app/model.py
+# app/runtime.py
 import os
 from typing import List, Dict, Any
 import numpy as np
 import onnxruntime as ort
 from transformers import AutoTokenizer
 from .settings import settings
-from .preprocess import preprocess_query, mask_text_keep_length, spans_overlap
 
 
 def load_labels(path: str) -> list[str]:
@@ -55,9 +54,6 @@ class ONNXNER:
         # Имена входов/выходов
         self.input_names = {i.name for i in self.session.get_inputs()}
         self.output_names = [o.name for o in self.session.get_outputs()]
-
-        self.preprocess_enabled = settings.preprocess_enabled
-        self.return_debug = settings.return_debug
 
     def _encode(self, texts: List[str]):
         enc = self.tokenizer(
@@ -123,60 +119,93 @@ class ONNXNER:
         flush()
         return ents
 
-    def predict(self, texts: List[str]) -> List[List[Dict[str, Any]]]:
-        # 1) предобработка числовых сущностей
-        if self.preprocess_enabled:
-            pre_entities_all = [preprocess_query(t) for t in texts]
-        else:
-            pre_entities_all = [[] for _ in texts]
-
-        # 2) маскируем найденные числовые сущности — длина строки сохраняется
-        masked_texts = [mask_text_keep_length(t, pre_entities_all[i], fill_char=" ") for i, t in enumerate(texts)]
-
-        # 3) обычный NER по маске
-        feed, offsets, _ = self._encode(masked_texts)  # NB: offsets соответствуют masked_texts
+    def predict(self, texts: List[str]) -> list[list[Dict[str, Any]]]:
+        feed, offsets, orig = self._encode(texts)
         outs = self.session.run(self.output_names, feed)
+        # ищем логиты [B,T,C]
         logits = next((o for o in outs if isinstance(o, np.ndarray) and o.ndim == 3), None)
         if logits is None:
             raise RuntimeError("Не найден выход [B,T,C] с логитами в ONNX-графе.")
         pred_ids = logits.argmax(axis=-1)  # [B,T]
 
-        # 4) конвертация BIO→span на masked_texts (индексы валидны для original, т.к. длина сохранена)
-        ner_entities_all: List[List[Dict[str, Any]]] = []
+        batch = []
         for b in range(pred_ids.shape[0]):
-            ner_entities_all.append(self._bio_to_spans(texts[b], pred_ids[b], offsets[b]))
+            batch.append(self._bio_to_spans(orig[b], pred_ids[b], offsets[b]))
+        return batch
 
-        # 5) слияние: предобработка выигрывает для {PERCENT,VOLUME}, NER — для остальных
-        merged_all: List[List[Dict[str, Any]]] = []
-        num_labels = {"PERCENT", "VOLUME"}
+    def predict_bio(self, texts: List[str]) -> list[list[Dict[str, Any]]]:
+        """
+        Совместимый с API метод: возвращает сущности на уровне span, как и predict().
+        Оставлен алиасом, потому что в API используется имя predict_bio.
+        """
+        return self.predict(texts)
 
-        for i, (pre, ner) in enumerate(zip(pre_entities_all, ner_entities_all)):
-            # pre: List[Span] -> в dict-формат
-            pre_as_dicts = [
-                {"label": lab.replace("B-", "").replace("I-", ""), "start": s, "end": e, "text": texts[i][s:e]}
-                for (s, e, lab) in pre
-            ]
+    def predict_raw(self, texts: List[str]) -> list[Dict[str, Any]]:
+        """
+        Возвращает "сырые" ответы модели по каждому элементу батча:
+        - tokens: токены токенизатора
+        - offsets: смещения символов для каждого токена [start, end]
+        - pred_ids: id предсказанных меток для каждого токена
+        - pred_labels: строковые метки для каждого токена (BIO)
+        - logits: логиты модели для каждого токена (np.ndarray формы [T, C])
 
-            # оставляем из NER только нечисловые метки и те, кто НЕ пересекается с pre
-            ner_filtered = []
-            for ent in ner:
-                label = ent["label"].split("-", 1)[-1] if "-" in ent["label"] else ent["label"]
-                if label in num_labels:
-                    continue
-                conflict = any(spans_overlap((ent["start"], ent["end"], label), (s, e, l)) for (s, e, l) in pre)
-                if not conflict:
-                    ner_filtered.append({"label": label, **{k: ent[k] for k in ("start", "end", "text")}})
+        ВНИМАНИЕ: этот метод предназначен для интроспекции в Python.
+        Возвращаемые np.ndarray не сериализуются в JSON без дополнительной обработки.
+        """
+        # Переиспользуем логику кодирования, но забираем полный enc для токенов
+        enc = self.tokenizer(
+            texts,
+            padding=True,
+            truncation=True,
+            max_length=settings.max_seq_len,
+            return_offsets_mapping=True,
+            return_tensors="np",
+            is_split_into_words=False,
+        )
 
-            merged = pre_as_dicts + ner_filtered
-            # (опционально) отсортировать по позиции
-            merged.sort(key=lambda x: (x["start"], x["end"]))
-            merged_all.append(merged)
+        # Сформируем feed под имена входов графа
+        feed: Dict[str, Any] = {}
+        if "input_ids" in self.input_names:
+            feed["input_ids"] = enc["input_ids"].astype(np.int64)
+        else:
+            for n in self.input_names:
+                if n.endswith("input_ids"):
+                    feed[n] = enc["input_ids"].astype(np.int64)
 
-        # (опционально) вернуть отладку
-        if self.return_debug:
-            # завернём вместе с pre/ner
-            return [
-                {"merged": m, "pre": p, "ner": n} for m, p, n in zip(merged_all, pre_entities_all, ner_entities_all)
-            ]
+        if "attention_mask" in self.input_names:
+            feed["attention_mask"] = enc["attention_mask"].astype(np.int64)
+        else:
+            for n in self.input_names:
+                if n.endswith("attention_mask"):
+                    feed[n] = enc["attention_mask"].astype(np.int64)
 
-        return merged_all
+        if "token_type_ids" in enc and "token_type_ids" in self.input_names:
+            feed["token_type_ids"] = enc["token_type_ids"].astype(np.int64)
+
+        offsets = enc["offset_mapping"]  # [B,T,2]
+
+        outs = self.session.run(self.output_names, feed)
+        logits = next((o for o in outs if isinstance(o, np.ndarray) and o.ndim == 3), None)
+        if logits is None:
+            raise RuntimeError("Не найден выход [B,T,C] с логитами в ONNX-графе.")
+
+        pred_ids = logits.argmax(axis=-1)  # [B,T]
+
+        batch_raw: list[Dict[str, Any]] = []
+        for b in range(pred_ids.shape[0]):
+            token_ids = enc["input_ids"][b].tolist()
+            tokens = self.tokenizer.convert_ids_to_tokens(token_ids)
+            pred_ids_row = pred_ids[b].tolist()
+            pred_labels_row = [self.labels[i] for i in pred_ids_row]
+
+            item = {
+                "text": texts[b],
+                "tokens": tokens,
+                "offsets": offsets[b].tolist(),
+                "pred_ids": pred_ids_row,
+                "pred_labels": pred_labels_row,
+                "logits": logits[b],  # np.ndarray [T, C]
+            }
+            batch_raw.append(item)
+
+        return batch_raw
