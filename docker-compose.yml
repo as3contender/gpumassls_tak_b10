@@ -1,0 +1,40 @@
+services:
+  ner-cpu:
+    profiles: ["cpu"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.cpu
+    environment:
+      - MODEL_DIR=/models/ner_xlmr_wordlevel_entity
+      - LABELS_PATH=/models/ner_xlmr_wordlevel_entity/labels.txt
+      - MAX_SEQ_LEN=256
+      - BATCH_MAX_SIZE=64
+      - BATCH_TIMEOUT_MS=10
+      - ORT_FORCE_CPU=1
+    volumes:
+      - ../models:/models:rw
+    ports:
+      - "8000:8000"
+
+  ner-gpu:
+    profiles: ["gpu"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gpu
+    environment:
+      - MODEL_DIR=/models/ner_xlmr_wordlevel_entity
+      - LABELS_PATH=/models/ner_xlmr_wordlevel_entity/labels.txt
+      - MAX_SEQ_LEN=256
+      - BATCH_MAX_SIZE=64
+      - BATCH_TIMEOUT_MS=10
+    volumes:
+      - ../models:/models:rw
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
