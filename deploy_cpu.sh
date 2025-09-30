@@ -128,9 +128,9 @@ echo '--- sample predict ---'
 TMP_RESP="/tmp/predict_resp.json"
 TMP_HDRS="/tmp/predict_hdrs.txt"
 set +e
-curl -sS -D "$TMP_HDRS" -o "$TMP_RESP" -X POST http://localhost:8000/predict \
+curl -sS -D "$TMP_HDRS" -o "$TMP_RESP" -X POST http://localhost:8000/api/predict \
   -H 'Content-Type: application/json' \
-  -d '{"texts":["кефир 3.2% простоквашино 930 мл"]}'
+  -d '{"input":"кефир 3.2% простоквашино 930 мл"}'
 CURL_CODE=$?
 set -e
 if [ $CURL_CODE -ne 0 ]; then
