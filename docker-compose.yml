@@ -29,10 +29,13 @@ services:
       - MAX_SEQ_LEN=256
       - BATCH_MAX_SIZE=64
       - BATCH_TIMEOUT_MS=10
+      - LOG_LEVEL=INFO
+      - UVICORN_LOG_LEVEL=info
+      - TOKENIZERS_PARALLELISM=false
+      - OMP_NUM_THREADS=4
+      - OMP_WAIT_POLICY=PASSIVE
       - ORT_INTRA_OP_NUM_THREADS=4
       - ORT_INTER_OP_NUM_THREADS=1
-      - LOG_LEVEL=DEBUG
-      - UVICORN_LOG_LEVEL=debug
     volumes:
       - ../models:/models:rw
     ports:

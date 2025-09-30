@@ -112,10 +112,11 @@ async def predict(inp: PredictIn):
             spans_batch = await loop.run_in_executor(None, predict_bio, [inp.input])
         spans = spans_batch[0]
         result = [SpanOut(start_index=int(s), end_index=int(e), entity=str(lab)) for (s, e, lab) in spans]
-        logger.debug(
-            "API response: {}",
-            [{"start_index": r.start_index, "end_index": r.end_index, "entity": r.entity} for r in result],
-        )
+        if settings.return_debug:
+            logger.debug(
+                "API response: {}",
+                [{"start_index": r.start_index, "end_index": r.end_index, "entity": r.entity} for r in result],
+            )
         return result
     except Exception as e:
         logger.exception("/api/predict error: {}", repr(e))
