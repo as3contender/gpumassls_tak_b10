@@ -1,5 +1,5 @@
 # app/main.py
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
 from loguru import logger
 from .logging_setup import setup_logging
@@ -39,10 +39,6 @@ async def lifespan(app: FastAPI):
 api = FastAPI(title="NER Hackathon Stub (Async, rule-based)", lifespan=lifespan)
 
 
-class PredictOut(BaseModel):
-    entities: List[List[tuple[int, int, str]]]
-
-
 class PredictIn(BaseModel):
     input: str
 
@@ -53,7 +49,7 @@ class SpanOut(BaseModel):
     entity: str
 
 
-_queue = asyncio.Queue()
+_queue = asyncio.Queue(maxsize=settings.queue_maxsize)
 BATCH_MAX_SIZE = settings.batch_max_size
 BATCH_TIMEOUT_MS = settings.batch_timeout_ms
 
@@ -72,7 +68,8 @@ async def _batch_worker():
         try:
             texts = sum([x["texts"] for x in batch], [])
             logger.debug("Processing batch of {} texts", len(texts))
-            result = predict_bio(texts)
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(None, predict_bio, texts)
             p = 0
             for x in batch:
                 n = len(x["texts"])
@@ -98,7 +95,21 @@ async def health():
 @api.post("/api/predict", response_model=List[SpanOut])
 async def predict(inp: PredictIn):
     try:
-        spans_batch = predict_bio([inp.input])
+        if settings.use_queue:
+            loop = asyncio.get_running_loop()
+            fut: asyncio.Future = loop.create_future()
+            try:
+                await asyncio.wait_for(
+                    _queue.put({"texts": [inp.input], "future": fut}),
+                    timeout=settings.batch_timeout_ms / 1000,
+                )
+            except asyncio.TimeoutError:
+                raise HTTPException(status_code=503, detail="Queue is busy")
+            spans_batch = await asyncio.wait_for(fut, timeout=max(0.001, settings.request_timeout_ms / 1000))
+        else:
+            # fallback: вычисление в пуле потоков, чтобы не блокировать event loop
+            loop = asyncio.get_running_loop()
+            spans_batch = await loop.run_in_executor(None, predict_bio, [inp.input])
         spans = spans_batch[0]
         result = [SpanOut(start_index=int(s), end_index=int(e), entity=str(lab)) for (s, e, lab) in spans]
         logger.debug(

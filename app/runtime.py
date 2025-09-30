@@ -46,6 +46,20 @@ class ONNXNER:
 
         so = ort.SessionOptions()
         so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        # Threading & execution mode tuning
+        try:
+            so.intra_op_num_threads = int(settings.ort_intra_op_num_threads)
+        except Exception:
+            pass
+        try:
+            so.inter_op_num_threads = int(settings.ort_inter_op_num_threads)
+        except Exception:
+            pass
+        if getattr(settings, "ort_execution_mode_parallel", True):
+            try:
+                so.execution_mode = ort.ExecutionMode.ORT_PARALLEL
+            except Exception:
+                pass
 
         model_path = os.path.join(settings.model_dir, "model.onnx")
         providers = _pick_providers()
