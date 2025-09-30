@@ -36,18 +36,18 @@ async def lifespan(app: FastAPI):
     yield
 
 
-api = FastAPI(lifespan=lifespan)
+api = FastAPI(title="NER Hackathon Stub (Async, rule-based)", lifespan=lifespan)
 
 
 class PredictOut(BaseModel):
     entities: List[List[tuple[int, int, str]]]
 
 
-class SinglePredictIn(BaseModel):
+class PredictIn(BaseModel):
     input: str
 
 
-class SingleEntityOut(BaseModel):
+class SpanOut(BaseModel):
     start_index: int
     end_index: int
     entity: str
@@ -90,17 +90,22 @@ async def _batch_worker():
 # Воркер запускается в _warmup(), чтобы гарантировать наличие запущенного event loop
 
 
-@api.get("/healthz")
-async def healthz():
+@api.get("/health")
+async def health():
     return {"status": "ok"}
 
 
-@api.post("/api/predict", response_model=List[SingleEntityOut])
-async def predict_single(inp: SinglePredictIn):
+@api.post("/api/predict", response_model=List[SpanOut])
+async def predict(inp: PredictIn):
     try:
         spans_batch = predict_bio([inp.input])
         spans = spans_batch[0]
-        return [{"start_index": int(s), "end_index": int(e), "entity": str(lab)} for (s, e, lab) in spans]
+        result = [SpanOut(start_index=int(s), end_index=int(e), entity=str(lab)) for (s, e, lab) in spans]
+        logger.debug(
+            "API response: {}",
+            [{"start_index": r.start_index, "end_index": r.end_index, "entity": r.entity} for r in result],
+        )
+        return result
     except Exception as e:
         logger.exception("/api/predict error: {}", repr(e))
         raise

@@ -113,7 +113,7 @@ cd "$REPO_DIR"
 sleep 5
 echo 'waiting for health...'
 for i in $(seq 1 60); do
-  if curl -sf http://localhost:8000/healthz >/dev/null; then
+  if curl -sf http://localhost:8000/health >/dev/null; then
     break
   fi
   sleep 2
