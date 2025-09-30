@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-ENV PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1 LOG_LEVEL=INFO
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential && rm -rf /var/lib/apt/lists/*
 
@@ -10,4 +10,7 @@ RUN pip install -r requirements.cpu.txt
 
 COPY app /app/app
 EXPOSE 8000
-CMD ["uvicorn", "app.main:api", "--host", "0.0.0.0", "--port", "8000"]
+# Enable debug-level server logs by default; override with UVICORN_LOG_LEVEL if needed
+ENV UVICORN_LOG_LEVEL=debug
+# Use shell form so env var gets expanded
+CMD sh -lc 'uvicorn app.main:api --host 0.0.0.0 --port 8000 --log-level ${UVICORN_LOG_LEVEL:-debug}'

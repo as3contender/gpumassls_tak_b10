@@ -1,92 +1,155 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ==== настройка ====
-USER="gpumasslsroot"          # <= ИЗМЕНИ при необходимости: имя пользователя на сервере
-HOST="89.169.187.74"            # адрес сервера из твоего сообщения
-SSH="$USER@$HOST"
+# ==== настройка (локальная) ====
+USER_ON_HOST="${USER_ON_HOST:-ubuntu}"             # свой юзер на сервере, можно USER_ON_HOST=denis ./deploy_cpu.sh
+HOST="89.169.187.74"
+SSH="$USER_ON_HOST@$HOST"
 
 REPO_URL="https://github.com/as3contender/gpumassls_tak_b10.git"
-APP_DIR="$HOME/app"             # корневая папка на сервере: ~/app
-REPO_DIR="$APP_DIR/repo"
-MODELS_SRC="../models"          # локальная папка с моделями (относительно текущего каталога)
-PORT="8000"                     # наружный порт API
-PROFILE="cpu"                   # профиль docker-compose
+PORT="8000"
+PROFILE="cpu"
 
-# ==== проверки ====
-if ! command -v rsync >/dev/null 2>&1; then
-  echo "Установи rsync (macOS: brew install rsync)"; exit 1
+# локальная папка с моделями: структура как у тебя — на уровень выше repo/
+MODELS_SRC="../models"   # запускай скрипт из repo/, чтобы путь был валиден
+
+# ==== проверки локально ====
+command -v rsync >/dev/null || { echo "Установи rsync (brew install rsync)"; exit 1; }
+
+# Определим совместимый флаг прогресса для rsync
+# У старого rsync из macOS нет --info=progress2, поэтому подменяем на --progress
+if rsync --version 2>/dev/null | head -1 | grep -E 'version (3|4)\.' >/dev/null; then
+  RSYNC_PROGRESS_FLAG="--info=progress2"
+else
+  RSYNC_PROGRESS_FLAG="--progress"
+  echo "[warn] У тебя старая версия rsync. Рекомендуется: brew install rsync"
 fi
 
-echo "==> Подготовка сервера $SSH"
-ssh -o StrictHostKeyChecking=accept-new "$SSH" bash -lc "
-  set -e
-  sudo apt-get update -y
-  # Docker
-  if ! command -v docker >/dev/null 2>&1; then
-    curl -fsSL https://get.docker.com | sh
-    sudo usermod -aG docker \$USER || true
-  fi
-  # docker compose plugin
-  sudo apt-get install -y docker-compose-plugin
-  # базовые утилиты
-  sudo apt-get install -y git curl ca-certificates ufw
-  # директории
-  mkdir -p $APP_DIR
-  # открыть порт
-  sudo ufw allow ${PORT}/tcp || true
-  sudo systemctl enable --now docker
-"
+echo "==> Подготовка сервера $SSH (Docker, compose, ufw, каталоги)"
+ssh -o StrictHostKeyChecking=accept-new "$SSH" bash -s <<'REMOTE'
+set -e
+# Переменные только на УДАЛЕННОЙ стороне
+APP_DIR="$HOME/app"
+REPO_DIR="$APP_DIR/repo"
+PORT="8000"
 
-echo "==> Код: clone/pull $REPO_URL -> $REPO_DIR"
-ssh "$SSH" bash -lc "
-  set -e
-  if [ -d '$REPO_DIR/.git' ]; then
-    cd '$REPO_DIR' && git fetch --all && git reset --hard origin/main || true
-  else
-    mkdir -p '$APP_DIR'
-    cd '$APP_DIR'
-    git clone '$REPO_URL' repo
-  fi
-"
+sudo apt-get update -y
+# Docker + compose plugin (если ещё нет)
+if ! command -v docker >/dev/null 2>&1; then
+  curl -fsSL https://get.docker.com | sh
+  sudo usermod -aG docker "$USER" || true
+fi
+sudo apt-get install -y docker-compose-plugin git curl ca-certificates ufw rsync jq
+sudo systemctl enable --now docker
 
-echo '==> Ссылка/монтирование models'
-# На нашем compose локально папка models находится рядом с repo (../models).
-# Разложим на сервере так же: ~/app/{repo,models}
-ssh "$SSH" bash -lc "mkdir -p '$APP_DIR/models'"
+# каталоги приложения
+mkdir -p "$APP_DIR"
+# открыть порт (если ufw включён — правило добавится; если выключен — не помешает)
+sudo ufw allow "${PORT}/tcp" || true
 
-echo "==> Передача моделей rsync: $MODELS_SRC -> $SSH:$APP_DIR/models/"
-rsync -avhP --delete --info=progress2 "$MODELS_SRC"/ "$SSH":"$APP_DIR/models"/
+# Выведем для отладки
+echo "REMOTE HOME=$HOME"
+echo "REMOTE APP_DIR=$APP_DIR"
+echo "REMOTE REPO_DIR=$REPO_DIR"
+REMOTE
+
+echo "==> Код: clone/pull $REPO_URL"
+ssh "$SSH" bash -s <<'REMOTE'
+set -e
+APP_DIR="$HOME/app"
+REPO_DIR="$APP_DIR/repo"
+if [ -d "$REPO_DIR/.git" ]; then
+  cd "$REPO_DIR"
+  git fetch --all
+  git reset --hard origin/main || git reset --hard origin/master || true
+else
+  mkdir -p "$APP_DIR"
+  cd "$APP_DIR"
+  git clone "https://github.com/as3contender/gpumassls_tak_b10.git" repo
+fi
+REMOTE
+
+echo "==> Создание директории под модели на сервере"
+ssh "$SSH" bash -s <<'REMOTE'
+set -e
+APP_DIR="$HOME/app"
+mkdir -p "$APP_DIR/models"
+REMOTE
+
+echo "==> Передача моделей rsync: $MODELS_SRC -> $SSH:~/app/models/"
+# (эта команда исполняется ЛОКАЛЬНО, тут как раз нужен локальный $MODELS_SRC)
+rsync -avhP --delete $RSYNC_PROGRESS_FLAG "$MODELS_SRC"/ $SSH:~/app/models/
 
 echo "==> Сборка и запуск docker compose (профиль: $PROFILE)"
-ssh "$SSH" bash -lc "
-  set -e
-  cd '$REPO_DIR'
-  # убедимся, что compose смотрит в ../models
-  if ! grep -q '../models:/models' docker-compose.yml && grep -q './models:/models' docker-compose.yml; then
-    # если у тебя в compose ещё ./models — попробуем переключить на ../models
-    sed -i 's#\./models:/models#../models:/models#g' docker-compose.yml || true
-  fi
+ssh "$SSH" bash -s <<'REMOTE'
+set -e
+APP_DIR="$HOME/app"
+REPO_DIR="$APP_DIR/repo"
+cd "$REPO_DIR"
 
-  docker compose --profile $PROFILE down || true
-  docker compose --profile $PROFILE build --no-cache
-  docker compose --profile $PROFILE up -d
-  docker compose --profile $PROFILE ps
-"
+# Нормализуем volume: абсолютный путь до моделей на хосте
+MODELS_HOST_DIR="$HOME/app/models"
+# Заменим любой левый путь вида "- something/models:/models[:rw]" на абсолютный
+if grep -q ':/models' docker-compose.yml; then
+  sed -i -E "s#-\s*[^[:space:]]*/models:/models(:rw)?#- ${MODELS_HOST_DIR}:/models:rw#g" docker-compose.yml || true
+fi
+
+docker compose --profile cpu down || true
+# Полная очистка образов и кеша
+docker system prune -f || true
+docker image prune -a -f || true
+# Пересборка без кеша
+docker compose --profile cpu build --no-cache --pull
+docker compose --profile cpu up -d
+docker compose --profile cpu ps
+REMOTE
 
 echo "==> Smoke-тест с сервера"
-ssh "$SSH" bash -lc "
-  set -e
+ssh "$SSH" bash -s <<'REMOTE'
+set -e
+APP_DIR="$HOME/app"
+REPO_DIR="$APP_DIR/repo"
+cd "$REPO_DIR"
+sleep 5
+echo 'waiting for health...'
+for i in $(seq 1 60); do
+  if curl -sf http://localhost:8000/healthz >/dev/null; then
+    break
+  fi
   sleep 2
-  curl -sf http://localhost:${PORT}/healthz || (docker compose --profile $PROFILE logs --tail=200 && exit 1)
-  echo
-  echo 'health: OK'
-  echo '--- sample predict ---'
-  curl -s -X POST http://localhost:${PORT}/predict \
-    -H 'Content-Type: application/json' \
-    -d '{\"texts\":[\"кефир 3.2% простоквашино 930 мл\"]}' | jq .
-  echo
-  echo 'Готово: http://$HOST:${PORT}'
-"
+  if [ "$i" -eq 60 ]; then
+    docker compose --profile cpu logs --tail=200 || true
+    exit 1
+  fi
+done
+echo
+echo 'health: OK'
+echo '--- sample predict ---'
+TMP_RESP="/tmp/predict_resp.json"
+TMP_HDRS="/tmp/predict_hdrs.txt"
+set +e
+curl -sS -D "$TMP_HDRS" -o "$TMP_RESP" -X POST http://localhost:8000/predict \
+  -H 'Content-Type: application/json' \
+  -d '{"texts":["кефир 3.2% простоквашино 930 мл"]}'
+CURL_CODE=$?
+set -e
+if [ $CURL_CODE -ne 0 ]; then
+  echo "curl failed with code $CURL_CODE"
+  echo "--- headers ---"; cat "$TMP_HDRS" || true
+  echo "--- body ---"; cat "$TMP_RESP" || true
+  docker compose --profile cpu logs --tail=200 || true
+  exit 1
+fi
+if jq -e . "$TMP_RESP" >/dev/null 2>&1; then
+  jq . "$TMP_RESP"
+else
+  echo "[warn] predict ответ не JSON. Печатаю сырой вывод:"
+  echo "--- headers ---"; cat "$TMP_HDRS" || true
+  echo "--- body ---"; cat "$TMP_RESP" || true
+  # не считаем это фатальным, но подсветим логи
+  docker compose --profile cpu logs --tail=100 || true
+fi
+echo
+REMOTE
 
 echo "✅ Деплой завершён. API: http://$HOST:$PORT"

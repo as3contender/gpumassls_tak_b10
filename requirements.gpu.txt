@@ -10,3 +10,5 @@ onnxruntime-gpu==1.18.1
 numpy>=1.26,<3
 
 regex>=2024.5
+
+loguru

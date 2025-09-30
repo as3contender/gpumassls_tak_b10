@@ -106,12 +106,8 @@ def predict_bio(texts: List[str], apply_regex_postprocess: bool = True) -> List[
         spans = word_bio_to_spans(words, word_bio)
         merged_batch.append(spans)
 
-    # Convert to API-friendly dicts (BIO kept/removed upstream; 'O' returned for nullified)
-    out: List[List[Dict[str, Any]]] = []
-    for text, spans in zip(texts, merged_batch):
-        out.append([{"label": lab, "start": s, "end": e, "text": text[s:e]} for (s, e, lab) in spans])
-
-    return out  # type: ignore
+    # Return tuples directly for API: [(start, end, label), ...]
+    return merged_batch  # type: ignore
 
 
 def run(csv_in: str, csv_out: str, batch_size: int, apply_regex_postprocess: bool) -> None:
@@ -125,7 +121,7 @@ def run(csv_in: str, csv_out: str, batch_size: int, apply_regex_postprocess: boo
         end = min(start + batch_size, n)
         batch_texts = texts[start:end]
         raw_items = ner.predict_raw(batch_texts)
-        spans_batch: List[List[Dict[str, Any]]] = []
+        spans_batch: List[List[Span]] = []
         for t, item in zip(batch_texts, raw_items):
             token_spans: List[Span] = []
             for (s, e), lab in zip(item["offsets"], item["pred_labels"]):
@@ -138,7 +134,7 @@ def run(csv_in: str, csv_out: str, batch_size: int, apply_regex_postprocess: boo
             if apply_regex_postprocess:
                 word_bio = apply_word_level_rules(t, words, word_bio)
             merged = word_bio_to_spans(words, word_bio)
-            spans_batch.append([{"label": lab, "start": s, "end": e, "text": t[s:e]} for (s, e, lab) in merged])
+            spans_batch.append(merged)
         all_spans.extend(spans_batch)
         if start % 500 == 0:
             print(f"Processed {end}/{n}")

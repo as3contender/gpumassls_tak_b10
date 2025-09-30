@@ -11,6 +11,8 @@ services:
       - BATCH_MAX_SIZE=64
       - BATCH_TIMEOUT_MS=10
       - ORT_FORCE_CPU=1
+      - LOG_LEVEL=DEBUG
+      - UVICORN_LOG_LEVEL=debug
     volumes:
       - ../models:/models:rw
     ports:
@@ -27,6 +29,8 @@ services:
       - MAX_SEQ_LEN=256
       - BATCH_MAX_SIZE=64
       - BATCH_TIMEOUT_MS=10
+      - LOG_LEVEL=DEBUG
+      - UVICORN_LOG_LEVEL=debug
     volumes:
       - ../models:/models:rw
     ports:
