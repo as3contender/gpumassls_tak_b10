@@ -92,12 +92,22 @@ mkdir -p "$APP_DIR/models"
 REMOTE
 
 echo "==> Передача моделей rsync: $MODELS_SRC -> $SSH:~/app/models/"
-rsync -avhP --delete $RSYNC_PROGRESS_FLAG "$MODELS_SRC"/ "$SSH":"app/models/"
+rsync -avhP --delete $RSYNC_PROGRESS_FLAG "$MODELS_SRC"/ "$SSH:~/app/models/"
+
+echo "==> Проверка передачи моделей на сервер"
+ssh "$SSH" bash -s <<'REMOTE'
+set -e
+APP_DIR="$HOME/app"
+echo "Проверяем наличие моделей в $APP_DIR/models/ner_xlmr_wordlevel_entity/"
+ls -la "$APP_DIR/models/ner_xlmr_wordlevel_entity/" | head -10 || echo "Модели не найдены!"
+echo "Проверяем labels.txt:"
+ls -la "$APP_DIR/models/ner_xlmr_wordlevel_entity/labels.txt" || echo "labels.txt не найден!"
+REMOTE
 
 echo "==> Проверка доступа к GPU из Docker"
 ssh "$SSH" bash -s <<'REMOTE'
 set -e
-docker run --rm --gpus all nvidia/cuda:12.1.1-base nvidia-smi || {
+docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi || {
   echo "[error] Контейнер не видит GPU. Проверь драйвер/ctk, возможно нужен reboot."
   exit 1
 }
@@ -110,9 +120,10 @@ APP_DIR="$HOME/app"
 REPO_DIR="$APP_DIR/repo"
 cd "$REPO_DIR"
 
-# Приводим volume к ../models:/models:rw (как у нас по структуре)
-if grep -q '\./models:/models' docker-compose.yml; then
-  sed -i 's#\./models:/models#../models:/models#g' docker-compose.yml || true
+# Приводим volume к абсолютному пути на сервере
+MODELS_HOST_DIR="$HOME/app/models"
+if grep -q '\.\./models:/models' docker-compose.yml; then
+  sed -i "s#\.\./models:/models#${MODELS_HOST_DIR}:/models#g" docker-compose.yml || true
 fi
 
 # Чистим dangling, но не удаляем все образы
@@ -122,6 +133,11 @@ docker compose --profile gpu down || true
 docker compose --profile gpu build --no-cache --pull
 docker compose --profile gpu up -d
 docker compose --profile gpu ps
+
+echo "Проверяем volume внутри контейнера:"
+docker compose --profile gpu exec ner-gpu ls -la /models/ner_xlmr_wordlevel_entity/ | head -10 || echo "Volume не подключен!"
+echo "Проверяем labels.txt в контейнере:"
+docker compose --profile gpu exec ner-gpu ls -la /models/ner_xlmr_wordlevel_entity/labels.txt || echo "labels.txt не найден в контейнере!"
 REMOTE
 
 echo "==> Smoke-тест с сервера"
@@ -138,7 +154,7 @@ for i in $(seq 1 60); do
   fi
   sleep 2
   if [ "$i" -eq 60 ]; then
-    docker compose --profile cpu logs --tail=200 || true
+    docker compose --profile gpu logs --tail=200 || true
     exit 1
   fi
 done
@@ -167,7 +183,7 @@ else
   echo "--- headers ---"; cat "$TMP_HDRS" || true
   echo "--- body ---"; cat "$TMP_RESP" || true
   # не считаем это фатальным, но подсветим логи
-  docker compose --profile cpu logs --tail=100 || true
+    docker compose --profile gpu logs --tail=100 || true
 fi
 echo
 REMOTE

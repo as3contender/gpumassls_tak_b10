@@ -5,6 +5,7 @@ import numpy as np
 import onnxruntime as ort
 from transformers import AutoTokenizer
 from .settings import settings
+from loguru import logger
 
 
 def load_labels(path: str) -> list[str]:
@@ -64,6 +65,13 @@ class ONNXNER:
         model_path = os.path.join(settings.model_dir, "model.onnx")
         providers = _pick_providers()
         self.session = ort.InferenceSession(model_path, sess_options=so, providers=providers)
+
+        # Log provider details to verify CUDA usage in production
+        try:
+            logger.info("ORT available providers: {}", ort.get_available_providers())
+            logger.info("ORT session providers: {}", self.session.get_providers())
+        except Exception:
+            pass
 
         # Имена входов/выходов
         self.input_names = {i.name for i in self.session.get_inputs()}
