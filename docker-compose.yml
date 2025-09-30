@@ -29,12 +29,15 @@ services:
       - MAX_SEQ_LEN=256
       - BATCH_MAX_SIZE=64
       - BATCH_TIMEOUT_MS=10
+      - ORT_INTRA_OP_NUM_THREADS=4
+      - ORT_INTER_OP_NUM_THREADS=1
       - LOG_LEVEL=DEBUG
       - UVICORN_LOG_LEVEL=debug
     volumes:
       - ../models:/models:rw
     ports:
       - "8000:8000"
+    gpus: all
     deploy:
       resources:
         reservations:
