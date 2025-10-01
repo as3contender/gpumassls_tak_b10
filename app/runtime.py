@@ -25,18 +25,7 @@ def _pick_providers() -> list:
 
     available = ort.get_available_providers()
     if "CUDAExecutionProvider" in available:
-        return [
-            (
-                "CUDAExecutionProvider",
-                {
-                    "device_id": 0,
-                    "arena_extend_strategy": "kNextPowerOfTwo",
-                    "cudnn_conv_algo_search": "EXHAUSTIVE",
-                    "do_copy_in_default_stream": 1,
-                },
-            ),
-            "CPUExecutionProvider",
-        ]
+        return ["CUDAExecutionProvider", "CPUExecutionProvider"]
     return ["CPUExecutionProvider"]
 
 
