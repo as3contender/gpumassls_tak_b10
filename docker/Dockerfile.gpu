@@ -1,39 +1,25 @@
 FROM nvidia/cuda:12.2.2-cudnn8-runtime-ubuntu22.04
 
-ENV PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1 LOG_LEVEL=INFO
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONUNBUFFERED=1
+
+# Базовые утилиты + Python
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    python3 \
-    python3-pip \
-  && rm -rf /var/lib/apt/lists/*
-
-# Ensure CUDA 11.8 runtime libraries (cublas/cublasLt, etc.) are present
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    cuda-libraries-11-8 \
-  && rm -rf /var/lib/apt/lists/*
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-  cuda-compat-11-8 \
-&& rm -rf /var/lib/apt/lists/*
-
-# Register CUDA compat path so dynamic linker finds libcuda from compat
-RUN bash -lc 'echo /usr/local/cuda/compat > /etc/ld.so.conf.d/cuda-compat.conf && ldconfig'
-
-# Set LD_LIBRARY_PATH (compat first), after compat is installed and registered
-ENV LD_LIBRARY_PATH=/usr/local/cuda/compat:/usr/local/nvidia/lib64:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
+      python3 python3-pip python3-venv python3-dev \
+      build-essential curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY requirements.gpu.txt /app/
-# Force correct ORT GPU wheel install for matching CUDA
-RUN python3 -m pip uninstall -y onnxruntime onnxruntime-gpu || true \
-  && python3 -m pip install --no-cache-dir onnxruntime-gpu==1.18.1 \
-  && python3 -m pip install --no-cache-dir -r requirements.gpu.txt
 
+# requirements
+COPY requirements.gpu.txt /app/
+RUN python3 -m pip install --upgrade pip \
+ && python3 -m pip install -r requirements.gpu.txt
+
+# код
 COPY app /app/app
+
 EXPOSE 8000
-# Enable debug-level server logs by default; override with UVICORN_LOG_LEVEL if needed
-ENV UVICORN_LOG_LEVEL=debug
-# на всякий случай зарегистрируй пути в ldconfig
-RUN bash -lc 'echo /usr/local/nvidia/lib64 > /etc/ld.so.conf.d/nvidia.conf && ldconfig'
-# Use shell form so env var gets expanded
-CMD sh -lc 'uvicorn app.main:api --host 0.0.0.0 --port 8000 --log-level ${UVICORN_LOG_LEVEL:-debug}'
+
+CMD ["uvicorn", "app.main:api", "--host", "0.0.0.0", "--port", "8000"]
