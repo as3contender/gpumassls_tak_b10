@@ -26,11 +26,11 @@ class Settings(BaseSettings):
     ort_execution_mode_parallel: bool = True
 
     # Postprocess controls
-    pp_token_inject_regex: bool = False
-    pp_token_inject_volume_levenshtein: bool = False
-    pp_token_nullify_after_prepositions: bool = False
-    pp_token_nullify_if_starts_with_all: bool = False
-    pp_token_ensure_leading_word_o: bool = False
+    pp_token_inject_regex: bool = True
+    pp_token_inject_volume_levenshtein: bool = True
+    pp_token_nullify_after_prepositions: bool = True
+    pp_token_nullify_if_starts_with_all: bool = True
+    pp_token_ensure_leading_word_o: bool = True
 
     pp_word_rules_enabled: bool = True
     pp_word_nullify_count_after_prep: int = 2
