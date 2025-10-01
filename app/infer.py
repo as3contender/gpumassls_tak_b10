@@ -20,6 +20,7 @@ import os
 from typing import List, Dict, Any
 
 from .runtime import ONNXNER
+from .settings import settings
 from .postprocess import (
     inject_regex_entities,
     inject_volume_keywords_levenshtein,
@@ -89,20 +90,27 @@ def predict_bio(texts: List[str], apply_regex_postprocess: bool = True) -> List[
         spans_batch.append(spans)
 
     if apply_regex_postprocess:
-        spans_batch = [inject_regex_entities(t, s) for t, s in zip(texts, spans_batch)]
-        spans_batch = [inject_volume_keywords_levenshtein(t, s) for t, s in zip(texts, spans_batch)]
-        # Nullify rules (after prepositions; entire phrase if starts with "все/всё")
-        spans_batch = [nullify_entities_after_prepositions(t, s) for t, s in zip(texts, spans_batch)]
-        spans_batch = [nullify_if_starts_with_all(t, s) for t, s in zip(texts, spans_batch)]
-        # Ensure first word has explicit O if none provided
-        spans_batch = [ensure_leading_word_O(t, s) for t, s in zip(texts, spans_batch)]
+        # Token-level injections are expensive; enable selectively via settings
+        if settings.pp_token_inject_regex:
+            spans_batch = [inject_regex_entities(t, s) for t, s in zip(texts, spans_batch)]
+        if settings.pp_token_inject_volume_levenshtein:
+            spans_batch = [inject_volume_keywords_levenshtein(t, s) for t, s in zip(texts, spans_batch)]
+        if settings.pp_token_nullify_after_prepositions:
+            spans_batch = [nullify_entities_after_prepositions(t, s) for t, s in zip(texts, spans_batch)]
+        if settings.pp_token_nullify_if_starts_with_all:
+            spans_batch = [nullify_if_starts_with_all(t, s) for t, s in zip(texts, spans_batch)]
+        if settings.pp_token_ensure_leading_word_o:
+            spans_batch = [ensure_leading_word_O(t, s) for t, s in zip(texts, spans_batch)]
 
     # Word-first pipeline: tokenize to words, map token BIO to words, apply word-level rules, then emit spans
     merged_batch = []
     for text, token_spans in zip(texts, spans_batch):
         words = split_words_with_offsets(text)
         word_bio = derive_word_bio_from_token_spans(words, token_spans)
-        word_bio = apply_word_level_rules(text, words, word_bio)
+        if settings.pp_word_rules_enabled:
+            word_bio = apply_word_level_rules(
+                text, words, word_bio, nullify_count_after_prep=settings.pp_word_nullify_count_after_prep
+            )
         spans = word_bio_to_spans(words, word_bio)
         merged_batch.append(spans)
 
