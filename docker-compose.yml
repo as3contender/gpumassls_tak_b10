@@ -26,9 +26,9 @@ services:
     environment:
       - MODEL_DIR=/models/ner_xlmr_wordlevel_entity
       - LABELS_PATH=/models/ner_xlmr_wordlevel_entity/labels.txt
-      - MAX_SEQ_LEN=128
-      - BATCH_MAX_SIZE=64
-      - BATCH_TIMEOUT_MS=10
+      - MAX_SEQ_LEN=192
+      - BATCH_MAX_SIZE=32
+      - BATCH_TIMEOUT_MS=8
       - LOG_LEVEL=INFO
       - UVICORN_LOG_LEVEL=info
       - TOKENIZERS_PARALLELISM=false
