@@ -26,13 +26,13 @@ services:
     environment:
       - MODEL_DIR=/models/ner_xlmr_wordlevel_entity
       - LABELS_PATH=/models/ner_xlmr_wordlevel_entity/labels.txt
-      - MAX_SEQ_LEN=256
+      - MAX_SEQ_LEN=128
       - BATCH_MAX_SIZE=64
       - BATCH_TIMEOUT_MS=10
       - LOG_LEVEL=INFO
       - UVICORN_LOG_LEVEL=info
       - TOKENIZERS_PARALLELISM=false
-      - OMP_NUM_THREADS=4
+      - OMP_NUM_THREADS=6
       - OMP_WAIT_POLICY=PASSIVE
       - ORT_INTRA_OP_NUM_THREADS=4
       - ORT_INTER_OP_NUM_THREADS=1
