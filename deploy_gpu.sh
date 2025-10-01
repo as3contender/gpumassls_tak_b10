@@ -3,7 +3,7 @@ set -euo pipefail
 
 # ==== локальные настройки ====
 USER_ON_HOST="${USER_ON_HOST:-ubuntu}"   # пример: USER_ON_HOST=denis ./deploy_gpu.sh
-HOST="89.169.191.106"
+HOST="158.160.4.126"
 SSH="$USER_ON_HOST@$HOST"
 
 REPO_URL="https://github.com/as3contender/gpumassls_tak_b10.git"

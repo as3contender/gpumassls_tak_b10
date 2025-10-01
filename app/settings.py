@@ -9,9 +9,9 @@ class Settings(BaseSettings):
     model_dir: str = str(PROJECT_ROOT / "models/ner_xlmr_wordlevel_entity")
     labels_path: str = str(PROJECT_ROOT / "models/ner_xlmr_wordlevel_entity/labels.txt")
     max_seq_len: int = 256
-    batch_max_size: int = 8
+    batch_max_size: int = 16
     batch_timeout_ms: int = 10
-    queue_maxsize: int = 1000
+    queue_maxsize: int = 5000
     request_timeout_ms: int = 2000
     warmup_requests: int = 50
     use_queue: bool = True
@@ -27,10 +27,10 @@ class Settings(BaseSettings):
 
     # Postprocess controls
     pp_token_inject_regex: bool = True
-    pp_token_inject_volume_levenshtein: bool = True
-    pp_token_nullify_after_prepositions: bool = True
-    pp_token_nullify_if_starts_with_all: bool = True
-    pp_token_ensure_leading_word_o: bool = True
+    pp_token_inject_volume_levenshtein: bool = False
+    pp_token_nullify_after_prepositions: bool = False
+    pp_token_nullify_if_starts_with_all: bool = False
+    pp_token_ensure_leading_word_o: bool = False
 
     pp_word_rules_enabled: bool = True
     pp_word_nullify_count_after_prep: int = 2
