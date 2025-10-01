@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.2.0-cudnn8-runtime-ubuntu22.04
+FROM nvidia/cuda:12.2.2-cudnn8-runtime-ubuntu22.04
 
 ENV PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1 LOG_LEVEL=INFO LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
 RUN apt-get update && apt-get install -y --no-install-recommends \
