@@ -41,6 +41,8 @@ services:
       context: .
       dockerfile: docker/Dockerfile.gpu
     environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       - MODEL_DIR=/models/ner_xlmr_wordlevel_entity
       - LABELS_PATH=/models/ner_xlmr_wordlevel_entity/labels.txt
       - MAX_SEQ_LEN=192

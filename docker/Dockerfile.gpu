@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
+FROM nvidia/cuda:12.2.2-cudnn8-runtime-ubuntu22.04
 
 ENV PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1 LOG_LEVEL=INFO LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/compat:${LD_LIBRARY_PATH}
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -9,7 +9,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 COPY requirements.gpu.txt /app/
-RUN python3 -m pip install -r requirements.gpu.txt
+# Force correct ORT GPU wheel install for matching CUDA
+RUN python3 -m pip uninstall -y onnxruntime onnxruntime-gpu || true \
+  && python3 -m pip install --no-cache-dir onnxruntime-gpu==1.18.1 \
+  && python3 -m pip install --no-cache-dir -r requirements.gpu.txt
 
 COPY app /app/app
 EXPOSE 8000
