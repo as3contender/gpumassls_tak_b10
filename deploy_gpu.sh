@@ -107,7 +107,7 @@ REMOTE
 echo "==> Проверка доступа к GPU из Docker"
 ssh "$SSH" bash -s <<'REMOTE'
 set -e
-docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi || {
+docker run --rm --gpus all nvidia/cuda:12.2.2-cudnn8-runtime-ubuntu22.04 nvidia-smi || {
   echo "[error] Контейнер не видит GPU. Проверь драйвер/ctk, возможно нужен reboot."
   exit 1
 }
