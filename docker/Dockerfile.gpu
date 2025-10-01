@@ -1,23 +1,30 @@
 FROM nvidia/cuda:12.2.2-cudnn8-runtime-ubuntu22.04
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    PIP_NO_CACHE_DIR=1 \
-    PYTHONUNBUFFERED=1
+ENV DEBIAN_FRONTEND=noninteractive PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1
 
-# CUDA 12.2 runtime libs (даёт libcublas*.so.12 и т.п.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 python3-pip python3-venv python3-dev build-essential ca-certificates \
-      cuda-libraries-12-2 \
-    && rm -rf /var/lib/apt/lists/*
+      libcudnn9-cuda-12 \
+    && rm -rf /var/lib/apt/lists/* \
+    && ldconfig
+
 
 WORKDIR /app
-
 COPY requirements.gpu.txt /app/
 
 # ВАЖНО: снести любые старые орты и поставить ровно нужный
-RUN python3 -m pip install --upgrade pip \
- && python3 -m pip uninstall -y onnxruntime onnxruntime-gpu || true \
- && python3 -m pip install --no-cache-dir -r requirements.gpu.txt
+# В requirements.gpu.txt зафиксируй:
+# onnxruntime-gpu==1.19.2
+RUN python3 -m pip install --upgrade pip && \
+    python3 -m pip uninstall -y onnxruntime onnxruntime-gpu || true && \
+    python3 -m pip install --no-cache-dir -r requirements.gpu.txt
+
+# cuDNN 9 для CUDA 12
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libcudnn9-cuda-12 && \
+    ldconfig && \
+    rm -rf /var/lib/apt/lists/*
+
 
 # Быстрая проверка на этапе сборки (чтобы фейлиться сразу, а не в рантайме)
 RUN python3 - <<'PY'
