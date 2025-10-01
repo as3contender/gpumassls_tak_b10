@@ -1,7 +1,10 @@
 FROM nvidia/cuda:12.2.2-cudnn8-runtime-ubuntu22.04
 
-ENV DEBIAN_FRONTEND=noninteractive PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONUNBUFFERED=1
 
+# CUDA 12.2 runtime libs (даёт libcublas*.so.12 и т.п.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 python3-pip python3-venv python3-dev build-essential ca-certificates \
       cuda-libraries-12-2 \
@@ -10,9 +13,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements.gpu.txt /app/
+
+# ВАЖНО: снести любые старые орты и поставить ровно нужный
 RUN python3 -m pip install --upgrade pip \
- && python3 -m pip install -r requirements.gpu.txt
+ && python3 -m pip uninstall -y onnxruntime onnxruntime-gpu || true \
+ && python3 -m pip install --no-cache-dir -r requirements.gpu.txt
+
+# Быстрая проверка на этапе сборки (чтобы фейлиться сразу, а не в рантайме)
+RUN python3 - <<'PY'
+import onnxruntime as ort, os, subprocess, sys
+print("ORT:", ort.__version__)
+print("providers avail:", ort.get_available_providers())
+# Проверим наличие libcublasLt.so.12
+subprocess.check_call("ldconfig -p | grep -E 'libcublasLt\\.so\\.12|libcublas\\.so\\.12'", shell=True)
+PY
 
 COPY app /app/app
+
 EXPOSE 8000
 CMD ["uvicorn", "app.main:api", "--host", "0.0.0.0", "--port", "8000"]
