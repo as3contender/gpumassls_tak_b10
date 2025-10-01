@@ -6,6 +6,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]  # .../gpumassls_task_b10
 
 
 class Settings(BaseSettings):
+    model_config = {"protected_namespaces": ("settings_",)}
     model_dir: str = str(PROJECT_ROOT / "models/ner_xlmr_wordlevel_entity")
     labels_path: str = str(PROJECT_ROOT / "models/ner_xlmr_wordlevel_entity/labels.txt")
     max_seq_len: int = 256
