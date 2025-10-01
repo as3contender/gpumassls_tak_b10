@@ -6,15 +6,18 @@ services:
       dockerfile: docker/Dockerfile.gpu
     image: repo-ner-gpu
     environment:
-      - MODEL_DIR=/models/ner_xlmr_wordlevel_entity       # см. ниже про путь!
+      # пути к модели — подставил те, что реально есть на сервере
+      - MODEL_DIR=/models/ner_xlmr_wordlevel_entity
       - LABELS_PATH=/models/ner_xlmr_wordlevel_entity/labels.txt
+
+      # параметры инференса/батчинга
       - MAX_SEQ_LEN=64
       - BATCH_MAX_SIZE=32
       - BATCH_TIMEOUT_MS=8
       - USE_QUEUE=true
       - TOKENIZERS_PARALLELISM=false
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+      # опционально: включены твои правила препроцессинга
       - PP_TOKEN_INJECT_REGEX=true
       - PP_TOKEN_INJECT_VOLUME_LEVENSHTEIN=true
       - PP_TOKEN_NULLIFY_AFTER_PREPOSITIONS=true
@@ -22,8 +25,15 @@ services:
       - PP_TOKEN_ENSURE_LEADING_WORD_O=true
       - PP_WORD_RULES_ENABLED=true
       - PP_WORD_NULLIFY_COUNT_AFTER_PREP=2
+
+      # важно для nvidia runtime
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
     volumes:
       - ../models:/models:rw
+
+    # для Compose v2: просим GPU через deploy.reservations + запуск с --compatibility
     deploy:
       resources:
         reservations:
@@ -31,51 +41,6 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-    ports:
-      - "8000:8000"
 
-  ner-gpu:
-    profiles: ["gpu"]
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.gpu
-    image: repo-ner-gpu
-    environment:
-      - MODEL_DIR=/models/ner_xlmr_wordlevel_entity
-      - LABELS_PATH=/models/ner_xlmr_wordlevel_entity/labels.txt
-      - MAX_SEQ_LEN=64
-      - BATCH_MAX_SIZE=32
-      - BATCH_TIMEOUT_MS=8
-      - QUEUE_MAXSIZE=5000
-      - REQUEST_TIMEOUT_MS=2000
-      - WARMUP_REQUESTS=50
-      - USE_QUEUE=true
-      - PREPROCESS_ENABLED=false
-      - MASK_NUMERIC_BEFORE_NER=true
-      - RETURN_DEBUG=false
-      - LOG_LEVEL=INFO
-      - UVICORN_LOG_LEVEL=info
-      - TOKENIZERS_PARALLELISM=false
-      - OMP_NUM_THREADS=6
-      - OMP_WAIT_POLICY=PASSIVE
-      - ORT_INTRA_OP_NUM_THREADS=4
-      - ORT_INTER_OP_NUM_THREADS=1
-      - ORT_EXECUTION_MODE_PARALLEL=true
-      - PP_TOKEN_INJECT_REGEX=true
-      - PP_TOKEN_INJECT_VOLUME_LEVENSHTEIN=true
-      - PP_TOKEN_NULLIFY_AFTER_PREPOSITIONS=true
-      - PP_TOKEN_NULLIFY_IF_STARTS_WITH_ALL=true
-      - PP_TOKEN_ENSURE_LEADING_WORD_O=true
-      - PP_WORD_RULES_ENABLED=true
-      - PP_WORD_NULLIFY_COUNT_AFTER_PREP=2
-      # ключевые переменные для nvidia runtime:
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-    volumes:
-      - ../models:/models:rw
-    device_requests:
-      - driver: nvidia
-        count: all
-        capabilities: [gpu]
     ports:
       - "8000:8000"
