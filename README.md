@@ -15,7 +15,7 @@
 - Transformers (токенизация) + ONNX Runtime (инференс)
 - Docker, docker-compose (GPU)
 
-Модель и токенайзер лежат в `models/ner_xlmr_wordlevel_entity` (в корне проекта).
+Модель и токенайзер лежат в `./models/ner_xlmr_wordlevel_entity` (рядом с этим README).
 
 ---
 
@@ -102,7 +102,7 @@ docker run --rm -p 8000:8000 \
   -e TOKENIZERS_PARALLELISM=false \
   -e MODEL_DIR=/models/ner_xlmr_wordlevel_entity \
   -e LABELS_PATH=/models/ner_xlmr_wordlevel_entity/labels.txt \
-  -v "$(pwd)/../models:/models:ro" \
+  -v "$(pwd)/models:/models:ro" \
   ner-cpu
 ```
 
@@ -120,7 +120,7 @@ docker run --rm -p 8000:8000 --gpus all \
   -e MODEL_DIR=/models/ner_xlmr_wordlevel_entity \
   -e LABELS_PATH=/models/ner_xlmr_wordlevel_entity/labels.txt \
   -e NVIDIA_VISIBLE_DEVICES=all \
-  -v "$(pwd)/../models:/models:ro" \
+  -v "$(pwd)/models:/models:ro" \
   ner-gpu
 ```
 

@@ -31,7 +31,7 @@ services:
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
     volumes:
-      - ../models:/models:rw
+      - ./models:/models:rw
 
     # для Compose v2: просим GPU через deploy.reservations + запуск с --compatibility
     deploy:
@@ -59,6 +59,6 @@ services:
       - USE_QUEUE=true
       - TOKENIZERS_PARALLELISM=false
     volumes:
-      - ../models:/models:rw
+      - ./models:/models:rw
     ports:
       - "8000:8000"
