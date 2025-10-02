@@ -1,5 +1,21 @@
-models/
-*.onnx
-onnx__*
-*.pt
-*.safetensors
+# Ignore models by default
+models/*
+
+# Allow tracking of the final model directory and essential files
+!models/ner_xlmr_wordlevel_entity/
+!models/ner_xlmr_wordlevel_entity/model.onnx
+!models/ner_xlmr_wordlevel_entity/labels.txt
+!models/ner_xlmr_wordlevel_entity/config.json
+!models/ner_xlmr_wordlevel_entity/tokenizer.json
+!models/ner_xlmr_wordlevel_entity/special_tokens_map.json
+!models/ner_xlmr_wordlevel_entity/vocab.json
+!models/ner_xlmr_wordlevel_entity/merges.txt
+!models/ner_xlmr_wordlevel_entity/tokenizer.model
+!models/ner_xlmr_wordlevel_entity/sentencepiece.bpe.model
+!models/ner_xlmr_wordlevel_entity/added_tokens.json
+
+# Still ignore heavy or unused artifacts inside the model dir
+models/ner_xlmr_wordlevel_entity/onnx__*
+models/ner_xlmr_wordlevel_entity/model.roberta.*
+models/ner_xlmr_wordlevel_entity/*.pt
+models/ner_xlmr_wordlevel_entity/*.safetensors
