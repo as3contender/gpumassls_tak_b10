@@ -19,3 +19,4 @@ models/ner_xlmr_wordlevel_entity/onnx__*
 models/ner_xlmr_wordlevel_entity/model.roberta.*
 models/ner_xlmr_wordlevel_entity/*.pt
 models/ner_xlmr_wordlevel_entity/*.safetensors
+.env

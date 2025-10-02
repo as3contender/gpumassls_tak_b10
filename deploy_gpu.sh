@@ -2,16 +2,23 @@
 set -euo pipefail
 
 # ==== локальные настройки ====
-USER_ON_HOST="${USER_ON_HOST:-ubuntu}"   # пример: USER_ON_HOST=denis ./deploy_gpu.sh
-HOST="158.160.27.131"
+# Подхватим переменные из .env (если есть) в текущей директории (repo/)
+if [ -f ./.env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+USER_ON_HOST="${DEPLOY_USER:-${USER_ON_HOST:-ubuntu}}"   # пример: DEPLOY_USER=denis ./deploy_gpu.sh
+HOST="${DEPLOY_HOST:-${HOST:-127.0.0.1}}"
 SSH="$USER_ON_HOST@$HOST"
 
 REPO_URL="https://github.com/as3contender/gpumassls_tak_b10.git"
-PORT="8000"
+PORT="${DEPLOY_PORT:-8000}"
 PROFILE="gpu"
 
 # локальная папка с моделями (запускать из repo/)
-MODELS_SRC="../models"
+MODELS_SRC="./models"
 
 # ---- rsync прогресс флаг ----
 if rsync --version 2>/dev/null | head -1 | grep -E 'version (3|4)\.' >/dev/null; then
@@ -27,7 +34,7 @@ ssh -o StrictHostKeyChecking=accept-new "$SSH" bash -s <<'REMOTE'
 set -e
 APP_DIR="$HOME/app"
 REPO_DIR="$APP_DIR/repo"
-PORT="8000"
+PORT="${PORT:-8000}"
 
 sudo apt-get update -y
 
@@ -120,10 +127,10 @@ APP_DIR="$HOME/app"
 REPO_DIR="$APP_DIR/repo"
 cd "$REPO_DIR"
 
-# Приводим volume к абсолютному пути на сервере
+# Приводим volume с моделями к абсолютному пути на сервере
 MODELS_HOST_DIR="$HOME/app/models"
-if grep -q '\.\./models:/models' docker-compose.yml; then
-  sed -i "s#\.\./models:/models#${MODELS_HOST_DIR}:/models#g" docker-compose.yml || true
+if grep -q ':/models' docker-compose.yml; then
+  sed -i -E "s#-\s*[^[:space:]]*/models:/models(:rw)?#- ${MODELS_HOST_DIR}:/models:rw#g" docker-compose.yml || true
 fi
 
 # Чистим dangling, но не удаляем все образы

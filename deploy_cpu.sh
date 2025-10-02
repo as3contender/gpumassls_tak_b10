@@ -2,16 +2,24 @@
 set -euo pipefail
 
 # ==== настройка (локальная) ====
-USER_ON_HOST="${USER_ON_HOST:-ubuntu}"             # свой юзер на сервере, можно USER_ON_HOST=denis ./deploy_cpu.sh
-HOST="89.169.187.74"
+# Подхватим переменные из .env (если есть) в текущей директории (repo/)
+if [ -f ./.env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+# Пользователь и хост читаем из .env, иначе берём дефолты
+USER_ON_HOST="${DEPLOY_USER:-${USER_ON_HOST:-ubuntu}}"
+HOST="${DEPLOY_HOST:-${HOST:-127.0.0.1}}"
 SSH="$USER_ON_HOST@$HOST"
 
 REPO_URL="https://github.com/as3contender/gpumassls_tak_b10.git"
-PORT="8000"
+PORT="${DEPLOY_PORT:-8000}"
 PROFILE="cpu"
 
-# локальная папка с моделями: структура как у тебя — на уровень выше repo/
-MODELS_SRC="../models"   # запускай скрипт из repo/, чтобы путь был валиден
+# локальная папка с моделями: теперь внутри repo/
+MODELS_SRC="./models"   # запускай скрипт из repo/, чтобы путь был валиден
 
 # ==== проверки локально ====
 command -v rsync >/dev/null || { echo "Установи rsync (brew install rsync)"; exit 1; }
@@ -31,7 +39,7 @@ set -e
 # Переменные только на УДАЛЕННОЙ стороне
 APP_DIR="$HOME/app"
 REPO_DIR="$APP_DIR/repo"
-PORT="8000"
+PORT="${PORT:-8000}"
 
 sudo apt-get update -y
 # Docker + compose plugin (если ещё нет)
