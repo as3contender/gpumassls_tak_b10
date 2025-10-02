@@ -44,3 +44,21 @@ services:
 
     ports:
       - "8000:8000"
+  ner-cpu:
+    profiles: ["cpu"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.cpu
+    image: repo-ner-cpu
+    environment:
+      - MODEL_DIR=/models/ner_xlmr_wordlevel_entity
+      - LABELS_PATH=/models/ner_xlmr_wordlevel_entity/labels.txt
+      - MAX_SEQ_LEN=256
+      - BATCH_MAX_SIZE=16
+      - BATCH_TIMEOUT_MS=10
+      - USE_QUEUE=true
+      - TOKENIZERS_PARALLELISM=false
+    volumes:
+      - ../models:/models:rw
+    ports:
+      - "8000:8000"
