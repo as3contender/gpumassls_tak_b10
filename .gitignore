@@ -14,9 +14,11 @@ models/*
 !models/ner_xlmr_wordlevel_entity/sentencepiece.bpe.model
 !models/ner_xlmr_wordlevel_entity/added_tokens.json
 
-# Still ignore heavy or unused artifacts inside the model dir
-models/ner_xlmr_wordlevel_entity/onnx__*
-models/ner_xlmr_wordlevel_entity/model.roberta.*
+# Track ONNX external data and required shards too (via LFS)
+!models/ner_xlmr_wordlevel_entity/onnx__*
+!models/ner_xlmr_wordlevel_entity/model.roberta.*
+
+# Still ignore training-only heavy artifacts
 models/ner_xlmr_wordlevel_entity/*.pt
 models/ner_xlmr_wordlevel_entity/*.safetensors
 .env

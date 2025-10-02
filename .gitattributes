@@ -1,3 +1,5 @@
 models/** filter=lfs diff=lfs merge=lfs -text
 *.onnx filter=lfs diff=lfs merge=lfs -text
 .onnx filter=lfs diff=lfs merge=lfs -text
+models/ner_xlmr_wordlevel_entity/onnx__* filter=lfs diff=lfs merge=lfs -text
+models/ner_xlmr_wordlevel_entity/model.roberta.* filter=lfs diff=lfs merge=lfs -text
