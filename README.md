@@ -32,7 +32,6 @@
 ```bash
 # Клонируем репозиторий и подтягиваем модель через Git LFS
 git clone <URL_РЕПОЗИТОРИЯ>
-cd <папка_репо>/repo
 git lfs install && git lfs pull
 
 # Поднимаем сервис в Docker (CPU профиль)
